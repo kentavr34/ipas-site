@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build
+.next/
+out/
+
+# Environment (NEVER commit this)
+.env
+.env.local
+.env.*.local
+
+# Misc
+.DS_Store
+Thumbs.db
+*.pem
+npm-debug.log*
+.vercel
+
+# clasp — локальные креды
+.clasp-project/.clasprc.json
+
+# Архив до-pivot-версии (на Supabase)
+_archive_supabase/
+
+# Скрапер с приватным HTML
+.scrape-work/
+scripts/output/*.html
+
+# Локальные скриншоты (служебное)
+.screenshots/

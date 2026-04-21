@@ -1,0 +1,104 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Светлая тема — IPI-style: белый фон, кремовая подложка карточек */
+  :root {
+    --surface: 255 255 255;        /* #FFFFFF чистый белый */
+    --surface-muted: 247 241 224;  /* #F7F1E0 тёплый кремовый */
+    --fg: 11 30 68;                /* #0B1E44 navy — основной текст */
+    --fg-muted: 80 96 128;         /* приглушённый сине-серый */
+    --border: 212 175 55;          /* #D4AF37 насыщенное золото */
+  }
+
+  /* Тёмная тема — по умолчанию, насыщенный navy + яркое золото */
+  :root.dark,
+  :root:not(.light) {
+    --surface: 11 30 68;           /* #0B1E44 глубокий navy */
+    --surface-muted: 20 43 92;     /* #142B5C чуть светлее для карточек */
+    --fg: 247 241 224;             /* #F7F1E0 тёплый кремовый текст */
+    --fg-muted: 170 190 220;       /* голубовато-серый */
+    --border: 212 175 55;          /* #D4AF37 золото */
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-surface text-fg font-sans;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  h1, h2, h3, h4, h5 {
+    @apply font-display tracking-tight;
+  }
+
+  /* Золотая линия — отсылка к рамке сертификата */
+  hr.gold {
+    border: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #D4AF37, transparent);
+    margin: 1.5rem 0;
+  }
+}
+
+@layer components {
+  .container-p {
+    @apply mx-auto w-full max-w-6xl px-5 sm:px-8;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center gap-2 rounded-md bg-brand-gold px-5 py-3
+           text-sm font-medium text-brand-ink shadow-glow transition
+           hover:bg-brand-gold2 hover:translate-y-[-1px] active:translate-y-0;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 rounded-md border border-brand-gold/40
+           px-5 py-3 text-sm font-medium text-brand-gold transition
+           hover:bg-brand-gold/10;
+  }
+
+  .card {
+    @apply rounded-xl border border-brand-gold/20 bg-surface-muted p-6
+           transition hover:border-brand-gold/60 hover:shadow-glow;
+  }
+
+  .input {
+    @apply w-full rounded-md border border-brand-gold/30 bg-surface
+           px-4 py-3 text-fg placeholder:text-fg-muted outline-none
+           transition focus:border-brand-gold focus:ring-2 focus:ring-brand-gold/30;
+  }
+
+  .badge-valid {
+    @apply inline-flex items-center gap-2 rounded-full bg-emerald-500/15
+           px-3 py-1 text-xs font-medium text-emerald-400;
+  }
+
+  .badge-revoked {
+    @apply inline-flex items-center gap-2 rounded-full bg-red-500/15
+           px-3 py-1 text-xs font-medium text-red-400;
+  }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+
+  /* «Пульс» для индикатора статуса */
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+  .pulse-dot { animation: pulse-dot 2s infinite; }
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .fade-up { animation: fade-up .45s ease forwards; }
+}
