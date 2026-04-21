@@ -457,6 +457,106 @@ function sendCertificateEmail_(cert) {
 }
 
 // ─────────────────────────────────────────────────────────────────
+//  Меню в Google Sheets — ручная выдача сертификата из таблицы
+//  (триггер onOpen ставится автоматически при открытии файла)
+// ─────────────────────────────────────────────────────────────────
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('IPAS')
+    .addItem('Send certificate (selected row)', 'menuSendCertForRow')
+    .addItem('Resend certificate (selected row)', 'menuResendCertForRow')
+    .addSeparator()
+    .addItem('Send ALL pending (status=valid, email пуст в emailed_at)',
+             'menuSendAllPending')
+    .addToUi();
+}
+
+/** Отправка одному — читает выбранную строку листа certificates. */
+function menuSendCertForRow() {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    const cert = readSelectedCertRow_();
+    if (!cert) return;
+    if (!cert.email) throw new Error('В строке пустой email');
+    if (cert.emailed_at) {
+      const resp = ui.alert('Уже отправлялось (' + cert.emailed_at + '). Отправить ещё раз?',
+                            ui.ButtonSet.YES_NO);
+      if (resp !== ui.Button.YES) return;
+    }
+    sendCertificateEmail_(cert);
+    markEmailed_(cert.id);
+    audit('menuSendCert', { id: cert.id });
+    ui.alert('OK', 'Письмо отправлено на ' + cert.email, ui.ButtonSet.OK);
+  } catch (e) {
+    ui.alert('Ошибка', String(e.message || e), ui.ButtonSet.OK);
+  }
+}
+
+function menuResendCertForRow() {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    const cert = readSelectedCertRow_();
+    if (!cert) return;
+    if (!cert.email) throw new Error('В строке пустой email');
+    sendCertificateEmail_(cert);
+    markEmailed_(cert.id);
+    audit('menuResendCert', { id: cert.id });
+    ui.alert('OK', 'Письмо переотправлено на ' + cert.email, ui.ButtonSet.OK);
+  } catch (e) {
+    ui.alert('Ошибка', String(e.message || e), ui.ButtonSet.OK);
+  }
+}
+
+/** Массовая рассылка всем, у кого status=valid и emailed_at пуст. */
+function menuSendAllPending() {
+  const ui = SpreadsheetApp.getUi();
+  const all = readAll('certificates');
+  const pending = all.filter(r =>
+    r.email && String(r.status).toLowerCase() === 'valid' && !r.emailed_at
+  );
+  if (!pending.length) {
+    ui.alert('Нет сертификатов в очереди (status=valid + emailed_at пуст).');
+    return;
+  }
+  const resp = ui.alert('Отправить ' + pending.length + ' писем?', ui.ButtonSet.YES_NO);
+  if (resp !== ui.Button.YES) return;
+
+  let ok = 0, fail = 0;
+  pending.forEach(cert => {
+    try { sendCertificateEmail_(cert); markEmailed_(cert.id); ok++; }
+    catch (e) { fail++; audit('menuSendAllPending_fail', { id: cert.id, err: String(e) }); }
+  });
+  audit('menuSendAllPending', { ok, fail });
+  ui.alert('Готово', 'Отправлено: ' + ok + ', ошибок: ' + fail, ui.ButtonSet.OK);
+}
+
+function readSelectedCertRow_() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getActiveSheet();
+  if (sh.getName() !== 'certificates') {
+    ui.alert('Открой лист certificates и поставь курсор на нужную строку.');
+    return null;
+  }
+  const row = sh.getActiveRange().getRow();
+  if (row < 2) { ui.alert('Выбери строку с данными (не заголовок).'); return null; }
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const values  = sh.getRange(row, 1, 1, headers.length).getValues()[0];
+  const cert = {};
+  headers.forEach((h, i) => cert[h] = values[i]);
+  if (!cert.id || !cert.full_name) {
+    ui.alert('В строке нет id или full_name.'); return null;
+  }
+  return cert;
+}
+
+function markEmailed_(id) {
+  const idx = findRowIndex('certificates', 'id', id);
+  if (idx === -1) return;
+  updateRow('certificates', idx, { emailed_at: new Date() });
+}
+
+// ─────────────────────────────────────────────────────────────────
 //  Резервное копирование (запускать по триггеру раз в сутки)
 // ─────────────────────────────────────────────────────────────────
 function dailyBackup() {
@@ -493,7 +593,7 @@ function initSpreadsheet() {
       'program','module','hours','courses_count','courses_raw',
       'issue_date','issued_by','status',
       'membership_type','valid_period','language','director','teacher',
-      'source_url','created_at'
+      'source_url','created_at','emailed_at'
     ],
     news_posts: [
       'id','slug','title','excerpt','content','category',
