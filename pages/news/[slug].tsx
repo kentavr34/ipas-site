@@ -53,7 +53,7 @@ export default function PostPage() {
         </Link>
         <header className="mt-4 max-w-3xl">
           <div className="text-[10px] uppercase tracking-widest text-brand-gold">
-            {format(new Date(post!.published_at), 'd MMMM yyyy')}
+            {post!.published_at && format(new Date(post!.published_at), 'd MMMM yyyy')}
           </div>
           <h1 className="mt-2 font-display text-3xl sm:text-5xl">{post!.title}</h1>
         </header>
@@ -63,7 +63,7 @@ export default function PostPage() {
         <div
           className="prose prose-invert max-w-3xl
                      prose-headings:font-display prose-a:text-brand-gold"
-          dangerouslySetInnerHTML={{ __html: markdownToHtml(post!.body_md) }}
+          dangerouslySetInnerHTML={{ __html: markdownToHtml(post!.content || '') }}
         />
       </article>
     </Layout>

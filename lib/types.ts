@@ -27,14 +27,15 @@ export interface Certificate {
 }
 
 export interface NewsPost {
-  id: string;
+  id?: string;
   slug: string;
   title: string;
-  excerpt: string;
-  body_md: string;
+  excerpt?: string;
+  content?: string;
+  category?: string;
   cover_url?: string;
-  published_at: string;
-  status: 'draft' | 'published';
+  published_at?: string;
+  published?: boolean;
 }
 
 export type EventSource = 'ipas' | 'ipi';
@@ -46,9 +47,11 @@ export interface IpasEvent {
   ends_at?: string;
   location?: string;
   description?: string;
-  source: EventSource;
+  source?: EventSource;
   source_url?: string;       // для IPI-событий ссылка на theipi.org
   register_url?: string;
+  url?: string;
+  price?: string;
 }
 
 // ─── Членство ─────────────────────────────────────────────────────
