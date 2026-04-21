@@ -8,6 +8,11 @@ import { Layout } from '../components/Layout';
 import { CertSearch } from '../components/CertSearch';
 import { HOMEPAGE } from '../data/homepage';
 
+// basePath prefix для /public-ассетов (favicon, фоновые фото).
+// Пусто в проде на своём домене, '/ipas-site' на github.io.
+const BP = process.env.NEXT_PUBLIC_BASE_PATH || '';
+const asset = (p: string) => `${BP}${p}`;
+
 const HIGHLIGHTS = [
   {
     icon: GraduationCap,
@@ -43,7 +48,7 @@ export default function Home() {
         {/* Фото-фон во всю ширину и высоту секции (stretched) */}
         <div
           className="pointer-events-none absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url('${HOMEPAGE.hero_image}')` }}
+          style={{ backgroundImage: `url('${asset(HOMEPAGE.hero_image)}')` }}
           aria-hidden
         />
         {/* Лёгкий navy-оверлей поверх фото — чтобы текст читался */}
@@ -117,7 +122,7 @@ export default function Home() {
           <div
             className="absolute inset-0 bg-cover bg-center transition
                        duration-700 group-hover:scale-105"
-            style={{ backgroundImage: `url('${HOMEPAGE.featured_event.image}')` }}
+            style={{ backgroundImage: `url('${asset(HOMEPAGE.featured_event.image)}')` }}
             aria-hidden
           />
           <div
@@ -181,7 +186,7 @@ export default function Home() {
       <section className="relative overflow-hidden py-14 sm:py-20">
         <div
           className="absolute inset-0 bg-cover bg-center opacity-10"
-          style={{ backgroundImage: `url('${HOMEPAGE.learning.image}')` }}
+          style={{ backgroundImage: `url('${asset(HOMEPAGE.learning.image)}')` }}
           aria-hidden
         />
         <div
@@ -240,7 +245,7 @@ export default function Home() {
             {/* Фото */}
             <div
               className="min-h-[260px] bg-cover bg-center md:min-h-[360px]"
-              style={{ backgroundImage: `url('${HOMEPAGE.ebooks.image}')` }}
+              style={{ backgroundImage: `url('${asset(HOMEPAGE.ebooks.image)}')` }}
               aria-hidden
             />
             {/* Статистика */}

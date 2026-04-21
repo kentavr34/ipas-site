@@ -1,5 +1,9 @@
 import clsx from 'clsx';
 
+// basePath из next.config.js попадает сюда через env.NEXT_PUBLIC_BASE_PATH.
+// При деплое в корень (intpas.com) значение пустое — префикс не добавляется.
+const BP = process.env.NEXT_PUBLIC_BASE_PATH || '';
+
 /**
  * Официальная печать IPAS — экспорт из Logo IPAS.psd.
  * Файл лежит в public/ — доступен по корню (совместим с `output: 'export'`).
@@ -12,7 +16,7 @@ export function Logo({ size = 40, className }: { size?: number; className?: stri
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src="/logo.png"
+      src={`${BP}/logo.png`}
       alt="IPAS — International Psychotherapy Association"
       width={size}
       height={size}

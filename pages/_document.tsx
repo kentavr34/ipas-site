@@ -1,13 +1,15 @@
 import { Html, Head, Main, NextScript } from 'next/document';
 
+const BP = process.env.NEXT_PUBLIC_BASE_PATH || '';
+
 export default function Document() {
   return (
     <Html lang="en" className="dark">
       <Head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
-        <link rel="apple-touch-icon" sizes="192x192" href="/logo-192.png" />
+        <link rel="icon" href={`${BP}/favicon.ico`} sizes="any" />
+        <link rel="icon" type="image/png" sizes="32x32" href={`${BP}/favicon-32.png`} />
+        <link rel="icon" type="image/png" sizes="16x16" href={`${BP}/favicon-16.png`} />
+        <link rel="apple-touch-icon" sizes="192x192" href={`${BP}/logo-192.png`} />
       </Head>
       <body className="antialiased">
         {/* Скрипт до гидратации — чтобы не было вспышки светлой темы */}
