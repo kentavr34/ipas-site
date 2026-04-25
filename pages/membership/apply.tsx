@@ -62,6 +62,14 @@ export default function Apply() {
         docs_base64,
       });
 
+      // NOWPayments hosted-invoice блокирует iframe (X-Frame-Options: DENY),
+      // поэтому редиректим на их страницу в текущей вкладке.
+      // Когда оплата пройдёт — NOWPayments вернёт пользователя на success_url
+      // (/membership/thank-you), а нам пришлёт IPN на Apps Script Web App.
+      if (res.invoice_url) {
+        window.location.assign(res.invoice_url);
+        return;
+      }
       setInvoiceUrl(res.invoice_url);
       setStage('payment');
     } catch (err) {
