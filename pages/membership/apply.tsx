@@ -263,7 +263,7 @@ export default function Apply() {
                 <h1 className="mt-4 font-display text-3xl">Application received</h1>
                 <p className="mt-2 text-sm text-fg-muted">
                   Thank you. The IPAS Council will review your credentials and
-                  contact you at <strong>{email}</strong> within 3–5 working days.
+                  contact you within 3–5 working days.
                 </p>
                 <Link href="/" className="btn-primary mt-6 justify-center">
                   Back to home
