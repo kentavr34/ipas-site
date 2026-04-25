@@ -11,6 +11,12 @@
  *   7. После успешной заливки можешь удалить этот файл
  */
 
+/**
+ * ИДЕМПОТЕНТНАЯ заливка: НЕ перезаписывает существующие строки.
+ * Добавляет только те ID, которых нет в листе. Поэтому твои ручные
+ * правки в таблице (часы, имена, email) больше НЕ будут стираться,
+ * сколько бы раз эту функцию ни запускали.
+ */
 function seedCerts() {
   const id = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
   if (!id) throw new Error('SHEET_ID не задан в Script Properties');
@@ -19,25 +25,49 @@ function seedCerts() {
   if (!sh) throw new Error('Лист certificates не найден. Запусти сначала initSpreadsheet()');
 
   const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-  const data = SEED_DATA;
+  const idCol = headers.indexOf('id');
 
-  // Чистим существующие строки (кроме заголовка)
+  // Существующие ID — чтобы не дублировать и не затирать
+  const existingIds = new Set();
   if (sh.getLastRow() > 1) {
-    sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
+    const ids = sh.getRange(2, idCol + 1, sh.getLastRow() - 1, 1).getValues();
+    ids.forEach(r => { if (r[0] !== '' && r[0] != null) existingIds.add(String(r[0])); });
   }
 
-  // Формируем 2D массив по порядку колонок
+  const data = SEED_DATA;
   const now = new Date();
-  const values = data.map(row => headers.map(h => {
+  const newRows = data.filter(r => !existingIds.has(String(r.id)));
+  const values = newRows.map(row => headers.map(h => {
     if (h === 'created_at') return now;
     return row[h] !== undefined ? row[h] : '';
   }));
 
   if (values.length) {
-    sh.getRange(2, 1, values.length, headers.length).setValues(values);
+    sh.getRange(sh.getLastRow() + 1, 1, values.length, headers.length).setValues(values);
   }
 
-  Logger.log('Seeded: ' + values.length + ' / ' + data.length);
+  Logger.log('Seeded NEW: ' + values.length + ' / kept existing: ' + existingIds.size);
+  return values.length;
+}
+
+/**
+ * ОПАСНО: полная пересборка с нуля. Запускай только если действительно
+ * хочешь стереть все правки и вернуть исходные 85 сертификатов.
+ */
+function seedCertsRESET_DESTRUCTIVE() {
+  const id = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+  if (!id) throw new Error('SHEET_ID не задан');
+  const sh = SpreadsheetApp.openById(id).getSheetByName('certificates');
+  if (sh.getLastRow() > 1) {
+    sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
+  }
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const now = new Date();
+  const values = SEED_DATA.map(row => headers.map(h =>
+    h === 'created_at' ? now : (row[h] !== undefined ? row[h] : '')
+  ));
+  if (values.length) sh.getRange(2, 1, values.length, headers.length).setValues(values);
+  Logger.log('FULL RESET: ' + values.length);
   return values.length;
 }
 
