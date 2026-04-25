@@ -643,12 +643,12 @@ function initSpreadsheet() {
 
 // Тарифы в USD — должны совпадать с фронтом (lib/tiers.ts).
 const TIER_PRICES = {
-  community:             20,
-  professional:          60,
-  faculty:              120,
-  verified_professional: 90,
-  society_ambassador:   250,
-  country_ambassador:   500,
+  community:               49,
+  professional:           149,
+  faculty:                349,
+  verified_professional: 1259,
+  society_ambassador:    2365,
+  country_ambassador:    5690,
 };
 
 function submitApplication(body) {
