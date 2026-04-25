@@ -82,6 +82,8 @@ function routeGet(action, p) {
     case 'cert':     return getCertById(p.id, p);
     case 'search':   return searchCerts(p.q || '');
     case 'listCertIds': return listCertIds();
+    case 'student':  return getStudentByCode(p.code, p);
+    case 'listStudentCodes': return listStudentCodes();
     case 'posts':    return getPublishedPosts();
     case 'post':     return getPostBySlug(p.slug);
     case 'events':   return getUpcomingEvents();
@@ -221,6 +223,58 @@ function getCertById(id, meta) {
     });
   } catch (e) {}
   return cert;
+}
+
+/**
+ * Возвращает профиль студента (все его сертификаты) по student_code.
+ * Если у студента несколько программ — все возвращаются одним массивом,
+ * плюс агрегаты: общее число часов, число курсов, последняя дата.
+ */
+function getStudentByCode(code, meta) {
+  if (!code) throw new Error('code обязателен');
+  const all = readAll('certificates');
+  const certs = all.filter(r => String(r.student_code || '') === String(code));
+  if (!certs.length) return null;
+
+  const totalHours = certs.reduce((s, c) => s + (Number(c.hours) || 0), 0);
+  const lastDate = certs
+    .map(c => c.issue_date ? new Date(c.issue_date) : null)
+    .filter(Boolean)
+    .sort((a, b) => b - a)[0];
+
+  // Лог доступа
+  try {
+    appendRow('access_log', {
+      id: Utilities.getUuid(),
+      cert_id: 'student:' + code,
+      ref: (meta && meta.ref) || '',
+      ua: (meta && meta.ua) || '',
+      at: new Date(),
+    });
+  } catch (e) {}
+
+  // Профиль студента + массив его сертификатов
+  const first = certs[0];
+  return {
+    student_code: code,
+    full_name: first.full_name,
+    first_name: first.first_name,
+    last_name: first.last_name,
+    email: first.email,
+    total_hours: totalHours,
+    courses_count: certs.length,
+    last_issue_date: lastDate ? lastDate.toISOString() : null,
+    certificates: certs,
+  };
+}
+
+/** Возвращает все student_code для пред-генерации страниц студентов. */
+function listStudentCodes() {
+  const set = new Set();
+  readAll('certificates').forEach(r => {
+    if (r.student_code) set.add(String(r.student_code));
+  });
+  return Array.from(set);
 }
 
 /**
@@ -690,7 +744,7 @@ function initSpreadsheet() {
   const ss = SpreadsheetApp.openById(CFG.SHEET_ID);
   const schema = {
     certificates: [
-      'id','display_id','full_name','first_name','last_name','email',
+      'id','display_id','student_code','full_name','first_name','last_name','email',
       'program','module','hours','courses_count','courses_raw',
       'issue_date','issued_by','status',
       'membership_type','valid_period','language','director','teacher',

@@ -5,6 +5,7 @@ export type CertStatus = 'valid' | 'revoked' | 'expired';
 export interface Certificate {
   id: string | number;
   display_id: string | number;
+  student_code?: string;
   full_name: string;
   first_name?: string;
   last_name?: string;
