@@ -198,7 +198,17 @@ function audit(action, details) {
 function getCertById(id, meta) {
   if (!id) throw new Error('id обязателен');
   const all = readAll('certificates');
-  const cert = all.find(r => String(r.id) === String(id));
+  // Гибкое сравнение: ищем и по id, и по display_id, с/без ведущих нулей.
+  // На старых сертификатах напечатан 9-значный номер с ведущим нулём
+  // (032513616), а Google Sheets хранит цифровой ID без нуля (32513616).
+  const norm = s => String(s == null ? '' : s).replace(/^0+/, '').toLowerCase();
+  const target = norm(id);
+  const cert = all.find(r =>
+    String(r.id) === String(id) ||
+    String(r.display_id) === String(id) ||
+    norm(r.id) === target ||
+    norm(r.display_id) === target
+  );
   if (!cert) return null;
   // Лог доступа (только для публичных GET)
   try {
@@ -213,11 +223,26 @@ function getCertById(id, meta) {
   return cert;
 }
 
-/** Возвращает все ID — для статической пред-генерации страниц на билде. */
+/**
+ * Возвращает все варианты ID — для статической пред-генерации страниц.
+ * Включает и id, и display_id, и обе формы (с ведущим нулём и без),
+ * чтобы старые напечатанные QR-коды на 0xxxxxxxx тоже открывались.
+ */
 function listCertIds() {
-  return readAll('certificates')
-    .map(r => String(r.id))
-    .filter(Boolean);
+  const set = new Set();
+  readAll('certificates').forEach(r => {
+    [r.id, r.display_id].forEach(v => {
+      if (v == null || v === '') return;
+      const s = String(v);
+      set.add(s);
+      // Добавим вариант с ведущим нулём, если 8 цифр и без нуля
+      if (/^\d{8}$/.test(s)) set.add('0' + s);
+      // И вариант без ведущих нулей
+      const stripped = s.replace(/^0+/, '');
+      if (stripped && stripped !== s) set.add(stripped);
+    });
+  });
+  return Array.from(set);
 }
 
 function searchCerts(q) {
