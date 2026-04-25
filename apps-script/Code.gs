@@ -479,7 +479,43 @@ function onOpen() {
     .addSeparator()
     .addItem('Send ALL pending (status=valid, email пуст в emailed_at)',
              'menuSendAllPending')
+    .addSeparator()
+    .addItem('Rebuild website (apply new certificates)', 'menuRebuildSite')
     .addToUi();
+}
+
+/**
+ * Триггерит пересборку статического сайта на GitHub Pages.
+ * Нужен Script Property GH_REBUILD_TOKEN — Personal Access Token GitHub
+ * с правом repo (для kentavr34/ipas-site).
+ */
+function menuRebuildSite() {
+  const ui = SpreadsheetApp.getUi();
+  const token = PropertiesService.getScriptProperties().getProperty('GH_REBUILD_TOKEN');
+  if (!token) {
+    ui.alert('GH_REBUILD_TOKEN не настроен в Script Properties. ' +
+             'Создай Personal Access Token (repo scope) и сохрани его.');
+    return;
+  }
+  const res = UrlFetchApp.fetch('https://api.github.com/repos/kentavr34/ipas-site/dispatches', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Accept': 'application/vnd.github+json',
+    },
+    payload: JSON.stringify({ event_type: 'rebuild' }),
+    muteHttpExceptions: true,
+  });
+  const code = res.getResponseCode();
+  if (code === 204) {
+    ui.alert('Rebuild запущен', 'Пересборка займёт ~2 минуты. ' +
+             'После этого новые сертификаты будут видны на intpas.com.',
+             ui.ButtonSet.OK);
+    audit('rebuildSite', { code });
+  } else {
+    ui.alert('Ошибка ' + code + ': ' + res.getContentText());
+  }
 }
 
 /** Отправка одному — читает выбранную строку листа certificates. */

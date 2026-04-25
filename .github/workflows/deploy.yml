@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  repository_dispatch:
+    types: [rebuild]
+  # Авто-пересборка раз в сутки — чтобы свежие сертификаты из таблицы
+  # появлялись на сайте без ручного дёргания.
+  schedule:
+    - cron: '0 3 * * *'
 
 permissions:
   contents: read
