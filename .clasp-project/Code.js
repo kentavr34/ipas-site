@@ -445,15 +445,45 @@ function deleteEvent(id) {
 //  Генерация PDF из шаблона Google Docs
 // ─────────────────────────────────────────────────────────────────
 /**
- * В шаблоне Google Docs используй плейсхолдеры:
- *   {{id}}, {{full_name}}, {{first_name}}, {{last_name}},
- *   {{program}}, {{module}}, {{hours}}, {{issue_date}}, {{issued_by}}
- * Также можно вставить URL: https://intpas.com/{{id}}
+ * Генерация PDF сертификата.
+ * Приоритет: TEMPLATE_SLIDE_ID (Google Slides — красивый шаблон с фоновой
+ * картинкой из Corel) > TEMPLATE_DOC_ID (старый текстовый шаблон).
+ *
+ * В шаблоне используй плейсхолдеры (фигурные скобки):
+ *   {{id}}, {{display_id}}, {{full_name}}, {{first_name}}, {{last_name}},
+ *   {{program}}, {{module}}, {{hours}}, {{issue_date}}, {{issued_by}},
+ *   {{director}}, {{teacher}}, {{language}}, {{membership_type}}
+ * Можно вставить URL для проверки: https://intpas.com/{{display_id}}
  */
 function buildCertificatePdf_(cert) {
-  if (!CFG.TEMPLATE_DOC_ID) throw new Error('TEMPLATE_DOC_ID не настроен');
-  const copy = DriveApp.getFileById(CFG.TEMPLATE_DOC_ID)
-    .makeCopy('tmp-cert-' + cert.id);
+  const props = PropertiesService.getScriptProperties();
+  const slideId = props.getProperty('TEMPLATE_SLIDE_ID');
+  if (slideId) return buildPdfFromSlides_(slideId, cert);
+  if (CFG.TEMPLATE_DOC_ID) return buildPdfFromDoc_(CFG.TEMPLATE_DOC_ID, cert);
+  throw new Error('Ни TEMPLATE_SLIDE_ID, ни TEMPLATE_DOC_ID не настроены');
+}
+
+/** Google Slides → PDF: твой дизайн из Corel как фон, поверх — плейсхолдеры. */
+function buildPdfFromSlides_(slideId, cert) {
+  const copy = DriveApp.getFileById(slideId).makeCopy('tmp-cert-' + cert.id);
+  try {
+    const pres = SlidesApp.openById(copy.getId());
+    const slides = pres.getSlides();
+    Object.keys(cert).forEach(key => {
+      const placeholder = '{{' + key + '}}';
+      const value = String(cert[key] == null ? '' : cert[key]);
+      slides.forEach(s => s.replaceAllText(placeholder, value));
+    });
+    pres.saveAndClose();
+    return copy.getAs('application/pdf').setName('IPAS-' + cert.display_id + '.pdf');
+  } finally {
+    copy.setTrashed(true);
+  }
+}
+
+/** Старый Google Docs шаблон — для обратной совместимости. */
+function buildPdfFromDoc_(docId, cert) {
+  const copy = DriveApp.getFileById(docId).makeCopy('tmp-cert-' + cert.id);
   try {
     const doc = DocumentApp.openById(copy.getId());
     const body = doc.getBody();
@@ -461,8 +491,7 @@ function buildCertificatePdf_(cert) {
       body.replaceText('{{' + key + '}}', String(cert[key] == null ? '' : cert[key]));
     });
     doc.saveAndClose();
-    const pdf = copy.getAs('application/pdf').setName('IPAS-' + cert.id + '.pdf');
-    return pdf;
+    return copy.getAs('application/pdf').setName('IPAS-' + cert.display_id + '.pdf');
   } finally {
     copy.setTrashed(true);
   }
