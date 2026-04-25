@@ -553,8 +553,20 @@ function buildPdfFromDoc_(docId, cert) {
 
 function sendCertificateEmail_(cert) {
   const pdf = buildCertificatePdf_(cert);
-  const subject = 'Your IPAS Certificate — ' + cert.full_name;
-  const verifyUrl = 'https://intpas.com/' + cert.id;
+  const props = PropertiesService.getScriptProperties();
+  const testMode = String(props.getProperty('TEST_MODE') || '').toLowerCase() === 'true';
+  const adminEmail = CFG.BCC || Session.getActiveUser().getEmail();
+
+  // В тест-режиме все письма идут админу, реальным студентам не уходят.
+  const recipient = testMode ? adminEmail : cert.email;
+  if (!recipient) throw new Error('Нет адреса получателя (cert.email пуст и BCC не настроен)');
+
+  const subjectPrefix = testMode ? '[TEST] ' : '';
+  const subject = subjectPrefix + 'Your IPAS Certificate — ' + cert.full_name;
+  // QR/верификация ведёт на профиль студента (если есть код), иначе на сам сертификат
+  const verifyUrl = cert.student_code
+    ? 'https://intpas.com/student/' + cert.student_code
+    : 'https://intpas.com/' + (cert.display_id || cert.id);
   const html =
     '<p>Dear ' + cert.first_name + ',</p>' +
     '<p>Congratulations! Your certificate from ' + CFG.FROM_NAME +
@@ -588,6 +600,7 @@ function onOpen() {
     .addItem('Send ALL pending (status=valid, email пуст в emailed_at)',
              'menuSendAllPending')
     .addSeparator()
+    .addItem('Generate student codes (group by name+email)', 'menuAutoStudentCodes')
     .addItem('Rebuild website (apply new certificates)', 'menuRebuildSite')
     .addToUi();
 }
@@ -902,5 +915,82 @@ function nowpayIpn(body) {
   }
   audit('nowpayIpn', { orderId, paymentId, status });
   return { ok: true };
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Автокоды студентов: проставляет student_code всем строкам в таблице,
+//  группируя по (full_name + email). Все строки одного человека получают
+//  один и тот же код вида IPAS-S-00001, IPAS-S-00002 и т.д.
+//
+//  Запускать вручную из меню IPAS → "Generate student codes".
+//  Идемпотентна: пропускает строки, у которых student_code уже заполнен.
+// ─────────────────────────────────────────────────────────────────
+function autoStudentCodes() {
+  const sh = sheet('certificates');
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const colName = h => headers.indexOf(h) + 1; // 1-based
+  const codeCol = colName('student_code');
+  const fnCol   = colName('full_name');
+  const emCol   = colName('email');
+
+  if (codeCol === 0) {
+    throw new Error('Нет колонки student_code. Добавь её в лист certificates.');
+  }
+
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return { processed: 0, assigned: 0 };
+
+  // Карта (full_name|email) → student_code
+  const data = sh.getRange(2, 1, lastRow - 1, headers.length).getValues();
+  const map = new Map();         // key → code
+  const codeMax = { n: 0 };
+
+  // Сначала собираем уже существующие коды (чтобы не пересекаться)
+  data.forEach(row => {
+    const code = String(row[codeCol - 1] || '').trim();
+    const m = code.match(/^IPAS-S-(\d+)$/);
+    if (m) codeMax.n = Math.max(codeMax.n, parseInt(m[1], 10));
+  });
+
+  // Теперь строим карту по (имя+email) для уже закодированных
+  data.forEach(row => {
+    const code = String(row[codeCol - 1] || '').trim();
+    if (!code) return;
+    const key = (String(row[fnCol - 1] || '').trim().toLowerCase() + '|' +
+                 String(row[emCol - 1] || '').trim().toLowerCase());
+    if (!map.has(key)) map.set(key, code);
+  });
+
+  // Проставляем недостающие
+  let assigned = 0;
+  data.forEach((row, i) => {
+    if (String(row[codeCol - 1] || '').trim()) return;       // уже есть
+    const fn = String(row[fnCol - 1] || '').trim();
+    if (!fn) return;                                           // без имени — пропуск
+    const key = fn.toLowerCase() + '|' +
+                String(row[emCol - 1] || '').trim().toLowerCase();
+    let code = map.get(key);
+    if (!code) {
+      codeMax.n += 1;
+      code = 'IPAS-S-' + String(codeMax.n).padStart(5, '0');
+      map.set(key, code);
+    }
+    sh.getRange(i + 2, codeCol).setValue(code);
+    assigned++;
+  });
+
+  audit('autoStudentCodes', { assigned });
+  return { processed: data.length, assigned };
+}
+
+function menuAutoStudentCodes() {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    const r = autoStudentCodes();
+    ui.alert('Готово', 'Обработано строк: ' + r.processed +
+             '\nПроставлено новых кодов: ' + r.assigned, ui.ButtonSet.OK);
+  } catch (e) {
+    ui.alert('Ошибка', String(e.message || e), ui.ButtonSet.OK);
+  }
 }
 
