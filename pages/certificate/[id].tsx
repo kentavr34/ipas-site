@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import type { GetStaticPaths, GetStaticProps } from 'next';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   ShieldCheck, ShieldAlert, Calendar, Clock, GraduationCap,
@@ -208,6 +209,33 @@ export default function CertPage() {
     </Layout>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Static export (output: 'export') требует getStaticPaths для динамики.
+// Тянем все ID из Apps Script во время билда, чтобы каждая страница
+// получила свой статический HTML на github.io / в CDN.
+// ─────────────────────────────────────────────────────────────────
+export const getStaticPaths: GetStaticPaths = async () => {
+  const url = process.env.NEXT_PUBLIC_API_URL;
+  let ids: string[] = [];
+  if (url) {
+    try {
+      const res = await fetch(`${url}?action=listCertIds`);
+      const body: any = await res.json();
+      if (body && Array.isArray(body.data)) {
+        ids = body.data.map((x: any) => String(x));
+      }
+    } catch (e) { /* билд не должен падать из-за бэкенда */ }
+  }
+  // Если бэкенд недоступен, генерируем хотя бы пустую заглушку — она же
+  // используется как фолбэк-роут (404.html копией).
+  return {
+    paths: ids.map(id => ({ params: { id } })),
+    fallback: false,
+  };
+};
+
+export const getStaticProps: GetStaticProps = async () => ({ props: {} });
 
 function Field({
   icon: Icon, label, children,

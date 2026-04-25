@@ -70,8 +70,9 @@ function doPost(e) {
   }
 }
 
-// Публичные POST-экшены (без токена). Сейчас таких нет.
-const PUBLIC_POST_ACTIONS = new Set([]);
+// Публичные POST-экшены (без токена).
+// submitApplication вызывается с фронта при отправке заявки на членство.
+const PUBLIC_POST_ACTIONS = new Set(['submitApplication', 'nowpayIpn']);
 
 // ─────────────────────────────────────────────────────────────────
 //  Роутеры
@@ -80,6 +81,7 @@ function routeGet(action, p) {
   switch (action) {
     case 'cert':     return getCertById(p.id, p);
     case 'search':   return searchCerts(p.q || '');
+    case 'listCertIds': return listCertIds();
     case 'posts':    return getPublishedPosts();
     case 'post':     return getPostBySlug(p.slug);
     case 'events':   return getUpcomingEvents();
@@ -99,6 +101,8 @@ function routePost(action, b) {
     case 'deletePost':  return deletePost(b.id);
     case 'upsertEvent': return upsertEvent(b.event);
     case 'deleteEvent': return deleteEvent(b.id);
+    case 'submitApplication': return submitApplication(b);
+    case 'nowpayIpn':   return nowpayIpn(b);
     default:            throw new Error('Unknown POST action: ' + action);
   }
 }
@@ -207,6 +211,13 @@ function getCertById(id, meta) {
     });
   } catch (e) {}
   return cert;
+}
+
+/** Возвращает все ID — для статической пред-генерации страниц на билде. */
+function listCertIds() {
+  return readAll('certificates')
+    .map(r => String(r.id))
+    .filter(Boolean);
 }
 
 function searchCerts(q) {
@@ -605,6 +616,15 @@ function initSpreadsheet() {
     ],
     access_log: ['id','cert_id','ref','ua','at'],
     audit_log:  ['id','action','details','at'],
+    applications: [
+      'id','tier','full_name','email','country','phone','bio',
+      'doc_urls','status','payment_id','amount_usd',
+      'invoice_url','created_at','updated_at'
+    ],
+    payments: [
+      'id','application_id','provider','currency','amount_usd',
+      'status','ipn_raw','created_at','updated_at'
+    ],
   };
   Object.keys(schema).forEach(name => {
     let sh = ss.getSheetByName(name);
@@ -616,3 +636,127 @@ function initSpreadsheet() {
   });
   return 'OK: листы созданы/проверены';
 }
+
+// ─────────────────────────────────────────────────────────────────
+//  Членство — приём заявок + счёт NOWPayments
+// ─────────────────────────────────────────────────────────────────
+
+// Тарифы в USD — должны совпадать с фронтом (lib/tiers.ts).
+const TIER_PRICES = {
+  community:             20,
+  professional:          60,
+  faculty:              120,
+  verified_professional: 90,
+  society_ambassador:   250,
+  country_ambassador:   500,
+};
+
+function submitApplication(body) {
+  const a = body || {};
+  if (!a.tier || !a.full_name || !a.email) {
+    throw new Error('tier, full_name, email обязательны');
+  }
+  const price = TIER_PRICES[a.tier];
+  if (!price) throw new Error('Неизвестный tier: ' + a.tier);
+
+  const applicationId = 'APP-' + Utilities.formatDate(new Date(), 'GMT', 'yyyyMMdd') +
+                        '-' + Math.floor(Math.random() * 1e6).toString(36);
+
+  // Инвойс у NOWPayments
+  const invoice = createNowPaymentsInvoice_({
+    price_amount: price,
+    price_currency: 'usd',
+    order_id: applicationId,
+    order_description: 'IPAS ' + a.tier + ' membership — ' + a.full_name,
+    ipn_callback_url: ScriptApp.getService().getUrl(), // свой же Web App, action=nowpayIpn
+    success_url: 'https://intpas.com/membership/thank-you',
+    cancel_url:  'https://intpas.com/membership',
+  });
+
+  appendRow('applications', {
+    id: applicationId,
+    tier: a.tier,
+    full_name: a.full_name,
+    email: a.email,
+    country: a.country || '',
+    phone: a.phone || '',
+    bio: a.bio || '',
+    doc_urls: Array.isArray(a.doc_urls) ? a.doc_urls.join('|') : (a.doc_urls || ''),
+    status: 'pending_payment',
+    payment_id: invoice.id || '',
+    amount_usd: price,
+    invoice_url: invoice.invoice_url || '',
+    created_at: new Date(),
+    updated_at: new Date(),
+  });
+  audit('submitApplication', { id: applicationId, tier: a.tier });
+
+  return {
+    application_id: applicationId,
+    invoice_url: invoice.invoice_url,
+  };
+}
+
+function createNowPaymentsInvoice_(payload) {
+  const key = PropertiesService.getScriptProperties().getProperty('NOWPAY_API_KEY');
+  if (!key) throw new Error('NOWPAY_API_KEY не настроен в Script Properties');
+  const res = UrlFetchApp.fetch('https://api.nowpayments.io/v1/invoice', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'x-api-key': key },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true,
+  });
+  const code = res.getResponseCode();
+  const body = res.getContentText();
+  if (code < 200 || code >= 300) {
+    throw new Error('NOWPayments ' + code + ': ' + body);
+  }
+  return JSON.parse(body);
+}
+
+/**
+ * IPN (instant payment notification) — NOWPayments шлёт сюда статус оплаты.
+ * Регистрируем платёж и обновляем заявку. Приходит JSON.
+ */
+function nowpayIpn(body) {
+  const paymentId = String(body.payment_id || body.id || '');
+  const status    = String(body.payment_status || body.status || '').toLowerCase();
+  const orderId   = String(body.order_id || '');
+
+  appendRow('payments', {
+    id: 'P-' + Utilities.getUuid().slice(0, 8),
+    application_id: orderId,
+    provider: 'nowpayments',
+    currency: body.pay_currency || '',
+    amount_usd: body.price_amount || '',
+    status,
+    ipn_raw: JSON.stringify(body),
+    created_at: new Date(),
+    updated_at: new Date(),
+  });
+
+  if (orderId) {
+    const idx = findRowIndex('applications', 'id', orderId);
+    if (idx !== -1) {
+      const newStatus = status === 'finished' ? 'pending_review'
+                      : status === 'failed'   ? 'rejected'
+                      : 'pending_payment';
+      updateRow('applications', idx, {
+        status: newStatus,
+        updated_at: new Date(),
+      });
+      if (newStatus === 'pending_review') {
+        // Уведомление админу (BCC), чтобы проверил документы
+        try {
+          GmailApp.sendEmail(CFG.BCC || '', 'New IPAS membership application paid', '',
+            { htmlBody: 'Application <b>' + orderId + '</b> — ' + status +
+              '<br>Open admin: https://intpas.com/admin' });
+        } catch (e) {}
+      }
+    }
+  }
+  audit('nowpayIpn', { orderId, paymentId, status });
+  return { ok: true };
+}
+

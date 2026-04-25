@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
+import type { GetStaticPaths, GetStaticProps } from 'next';
 import { Layout } from '../components/Layout';
 
 /**
@@ -41,3 +42,24 @@ export default function LegacyCertRedirect() {
     </Layout>
   );
 }
+
+// Static export: пред-генерируем страницы для всех known cert IDs.
+export const getStaticPaths: GetStaticPaths = async () => {
+  const url = process.env.NEXT_PUBLIC_API_URL;
+  let ids: string[] = [];
+  if (url) {
+    try {
+      const res = await fetch(`${url}?action=listCertIds`);
+      const body: any = await res.json();
+      if (body && Array.isArray(body.data)) {
+        ids = body.data.map((x: any) => String(x));
+      }
+    } catch (e) { /* ignore */ }
+  }
+  return {
+    paths: ids.map(id => ({ params: { certId: id } })),
+    fallback: false,
+  };
+};
+
+export const getStaticProps: GetStaticProps = async () => ({ props: {} });
