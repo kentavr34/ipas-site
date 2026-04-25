@@ -226,14 +226,27 @@ function getCertById(id, meta) {
 }
 
 /**
- * Возвращает профиль студента (все его сертификаты) по student_code.
- * Если у студента несколько программ — все возвращаются одним массивом,
- * плюс агрегаты: общее число часов, число курсов, последняя дата.
+ * Возвращает профиль студента (все его сертификаты) по коду.
+ * "Код студента" — это display_id (или id) на печатном сертификате.
+ * У одного студента может быть несколько строк = несколько курсов,
+ * у всех одинаковый display_id. Логика как в старой системе intpas.com.
+ *
+ * Поиск гибкий: совпадение по display_id, id или student_code (если есть),
+ * с/без ведущих нулей.
  */
 function getStudentByCode(code, meta) {
   if (!code) throw new Error('code обязателен');
   const all = readAll('certificates');
-  const certs = all.filter(r => String(r.student_code || '') === String(code));
+  const norm = s => String(s == null ? '' : s).replace(/^0+/, '').toLowerCase();
+  const target = norm(code);
+  const certs = all.filter(r =>
+    String(r.display_id) === String(code) ||
+    String(r.id) === String(code) ||
+    String(r.student_code || '') === String(code) ||
+    norm(r.display_id) === target ||
+    norm(r.id) === target ||
+    norm(r.student_code) === target
+  );
   if (!certs.length) return null;
 
   const totalHours = certs.reduce((s, c) => s + (Number(c.hours) || 0), 0);
@@ -253,10 +266,13 @@ function getStudentByCode(code, meta) {
     });
   } catch (e) {}
 
-  // Профиль студента + массив его сертификатов
+  // Профиль студента + массив его сертификатов.
+  // Каноничный код студента = display_id (то что напечатано на бумажном
+  // сертификате). Возвращаем самый "красивый" вариант (с ведущим нулём).
   const first = certs[0];
+  const canonicalCode = first.student_code || first.display_id || first.id;
   return {
-    student_code: code,
+    student_code: String(canonicalCode),
     full_name: first.full_name,
     first_name: first.first_name,
     last_name: first.last_name,
@@ -268,11 +284,21 @@ function getStudentByCode(code, meta) {
   };
 }
 
-/** Возвращает все student_code для пред-генерации страниц студентов. */
+/**
+ * Возвращает все коды студентов для пред-генерации страниц.
+ * Включает display_id, id, и student_code — все формы (с/без ведущего нуля).
+ */
 function listStudentCodes() {
   const set = new Set();
   readAll('certificates').forEach(r => {
-    if (r.student_code) set.add(String(r.student_code));
+    [r.student_code, r.display_id, r.id].forEach(v => {
+      if (v == null || v === '') return;
+      const s = String(v);
+      set.add(s);
+      if (/^\d{8}$/.test(s)) set.add('0' + s);
+      const stripped = s.replace(/^0+/, '');
+      if (stripped && stripped !== s) set.add(stripped);
+    });
   });
   return Array.from(set);
 }
@@ -600,7 +626,6 @@ function onOpen() {
     .addItem('Send ALL pending (status=valid, email пуст в emailed_at)',
              'menuSendAllPending')
     .addSeparator()
-    .addItem('Generate student codes (group by name+email)', 'menuAutoStudentCodes')
     .addItem('Rebuild website (apply new certificates)', 'menuRebuildSite')
     .addToUi();
 }

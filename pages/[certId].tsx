@@ -28,9 +28,11 @@ export default function LegacyCertRedirect() {
       router.replace('/' + certId.toLowerCase());
       return;
     }
-    // Разрешаем любой идентификатор (цифры, буквы, дефисы)
+    // Любой ID студента → профиль с его курсами.
+    // Так было в старой системе intpas.com/032513616 — одна страница
+    // на студента, все его сертификаты в списке.
     if (/^[A-Za-z0-9_-]+$/.test(certId)) {
-      router.replace(`/certificate/${certId}`);
+      router.replace(`/student/${certId}`);
     }
   }, [router, certId]);
 

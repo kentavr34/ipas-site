@@ -21,15 +21,13 @@ export default function CertPage() {
   const [cert, setCert] = useState<Certificate | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
+  // У одного студента может быть несколько курсов — все на одной странице
+  // профиля /student/[id]. Этот URL оставлен для обратной совместимости
+  // (старые QR-коды, входящие ссылки) и теперь делает редирект.
   useEffect(() => {
     if (!id || typeof id !== 'string') return;
-    setCert(undefined);
-    setError(null);
-    api
-      .getCert(id, { ref: typeof document !== 'undefined' ? document.referrer : '' })
-      .then(setCert)
-      .catch(e => setError(e.message));
-  }, [id]);
+    router.replace(`/student/${id}`);
+  }, [id, router]);
 
   // ─── Loading / Not found ──────────────────────────────────────
   if (cert === undefined && !error) {
