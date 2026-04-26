@@ -563,9 +563,11 @@ function buildPdfFromSlides_(slideId, cert) {
                        (cert.display_id || cert.id);
     try {
       const qrBlob = _generateQrBlob(verifyUrl);
-      // Координаты совпадают с маской в _buildCertTemplate — белый
-      // прямоугольник скрывает старый QR, мы кладём поверх свежий.
-      slides[0].insertImage(qrBlob, 215, 530, 145, 145);
+      // Координаты в долях от размера слайда — совпадают с маской в
+      // _buildCertTemplate (нижний левый QR).
+      const W = pres.getPageWidth();
+      const H = pres.getPageHeight();
+      slides[0].insertImage(qrBlob, 0.19 * W, 0.67 * H, 0.13 * W, 0.18 * H);
     } catch (e) {
       // Если QR-сервис недоступен — продолжаем без QR
       audit('qrFailed', { url: verifyUrl, error: String(e) });
@@ -1055,32 +1057,31 @@ function createCertTemplateFromImage() {
 }
 
 function _buildCertTemplate(imageDriveId) {
-  // 1. Создаём пустой Slides файл
-  const pres = SlidesApp.create('IPAS Certificate Template');
+  // 1. Создаём пустой Slides файл (дефолтный размер 4:3 = 720×540 pt)
+  const pres = SlidesApp.create('IPAS Certificate Template ' +
+    Utilities.formatDate(new Date(), 'GMT', 'yyyy-MM-dd-HHmm'));
   const slide = pres.getSlides()[0];
 
-  // 2. Размер слайда — A4 landscape (примерно 297×210 mm = 11.69×8.27 inch)
-  // SlidesApp работает в pixels (96 DPI): 1122 x 793 px
-  pres.setPageSize(1122, 793);
+  // Размеры слайда в точках (pt) — берём фактические, без хардкода
+  const W = pres.getPageWidth();
+  const H = pres.getPageHeight();
 
-  // 3. Заливаем фоном картинку сертификата
+  // 2. Заливаем фоном картинку сертификата на весь слайд
   const image = DriveApp.getFileById(imageDriveId).getBlob();
   const bg = slide.insertImage(image);
-  bg.setLeft(0).setTop(0).setWidth(1122).setHeight(793);
+  bg.setLeft(0).setTop(0).setWidth(W).setHeight(H);
   bg.sendToBack();
 
-  // 4. Закрываем образцовый текст белыми масками, чтобы под плейсхолдером
-  //    не просвечивали "Aybeniz Hasanova" и название курса с примера.
-  //    Координаты подобраны под landscape layout твоего макета (1122×793).
+  // 3. Закрываем образцовый текст белыми масками. Координаты — в долях
+  //    от ширины/высоты слайда, чтобы работало при любом размере.
+  const fr = (xFrac, yFrac, wFrac, hFrac) => ({
+    x: xFrac * W, y: yFrac * H, w: wFrac * W, h: hFrac * H,
+  });
   const masks = [
-    // Имя — широкая полоса посередине
-    { x: 90, y: 270, w: 940, h: 95 },
-    // Текст про курс и преподавателя — две строки
-    { x: 200, y: 380, w: 720, h: 80 },
-    // Полоска для часов и даты под текстом курса
-    { x: 200, y: 460, w: 720, h: 30 },
-    // Старый QR-код студентки Aybeniz — заменим на динамический
-    { x: 215, y: 530, w: 145, h: 145 },
+    fr(0.08, 0.34, 0.84, 0.12),  // имя студента
+    fr(0.18, 0.48, 0.64, 0.10),  // курс + преподаватель (2 строки)
+    fr(0.18, 0.58, 0.64, 0.04),  // часы + дата
+    fr(0.19, 0.67, 0.13, 0.18),  // старый QR-код (нижний левый)
   ];
   masks.forEach(m => {
     const r = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, m.x, m.y, m.w, m.h);
@@ -1088,33 +1089,32 @@ function _buildCertTemplate(imageDriveId) {
     r.getBorder().setTransparent();
   });
 
-  // 5. Плейсхолдеры поверх масок.
-  //    После создания шаблона можно открыть Slides и сдвинуть мышью.
+  // 4. Плейсхолдеры поверх масок
   const fields = [
-    { ph: '{{full_name}}', x: 90, y: 280, w: 940, h: 80,
-      font: 'Great Vibes', size: 60, color: '#0F2A23', align: 'CENTER' },
+    { ph: '{{full_name}}', area: fr(0.08, 0.35, 0.84, 0.10),
+      font: 'Great Vibes', size: 54, color: '#0F2A23', align: 'CENTER' },
     { ph: 'for successful completion of the "{{program}}" course',
-      x: 200, y: 385, w: 720, h: 30,
-      font: 'Open Sans', size: 16, color: '#0F2A23', align: 'CENTER' },
-    { ph: 'under the guidance of Teacher {{teacher}}',
-      x: 200, y: 418, w: 720, h: 30,
+      area: fr(0.18, 0.49, 0.64, 0.04),
       font: 'Open Sans', size: 14, color: '#0F2A23', align: 'CENTER' },
-    // Часы и дата выдачи — видимая строка под информацией о курсе
+    { ph: 'under the guidance of Teacher {{teacher}}',
+      area: fr(0.18, 0.53, 0.64, 0.04),
+      font: 'Open Sans', size: 12, color: '#0F2A23', align: 'CENTER' },
     { ph: 'Total: {{hours}} hours  ·  Issued: {{issue_date}}',
-      x: 200, y: 462, w: 720, h: 28,
-      font: 'Open Sans', size: 13, color: '#7A4900', align: 'CENTER' },
-    // ID студента в углу — для технической верификации
-    { ph: '#{{display_id}}', x: 50, y: 760, w: 200, h: 25,
-      font: 'Roboto Mono', size: 9, color: '#999999', align: 'START' },
+      area: fr(0.18, 0.59, 0.64, 0.035),
+      font: 'Open Sans', size: 11, color: '#7A4900', align: 'CENTER' },
+    { ph: '#{{display_id}}', area: fr(0.04, 0.94, 0.20, 0.04),
+      font: 'Roboto Mono', size: 8, color: '#999999', align: 'START' },
   ];
 
   fields.forEach(f => {
-    const tb = slide.insertTextBox(f.ph, f.x, f.y, f.w, f.h);
+    const tb = slide.insertTextBox(f.ph, f.area.x, f.area.y, f.area.w, f.area.h);
     const t = tb.getText();
-    t.getTextStyle()
-      .setFontFamily(f.font)
-      .setFontSize(f.size)
-      .setForegroundColor(f.color);
+    try {
+      t.getTextStyle()
+        .setFontFamily(f.font)
+        .setFontSize(f.size)
+        .setForegroundColor(f.color);
+    } catch (e) { /* шрифт может быть недоступен — оставляем дефолтный */ }
     if (f.align === 'CENTER') {
       t.getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.CENTER);
     } else if (f.align === 'END') {
@@ -1124,15 +1124,20 @@ function _buildCertTemplate(imageDriveId) {
 
   pres.saveAndClose();
 
-  // 5. Прописываем ID в Script Properties — отныне генератор будет
-  //    использовать именно этот шаблон.
-  PropertiesService.getScriptProperties().setProperty('TEMPLATE_SLIDE_ID', pres.getId());
-  audit('createCertTemplate', { id: pres.getId() });
+  // 5. Прописываем ID в Script Properties — отныне генератор использует
+  //    именно этот шаблон.
+  const newId = pres.getId();
+  const url = pres.getUrl();
+  PropertiesService.getScriptProperties().setProperty('TEMPLATE_SLIDE_ID', newId);
+  audit('createCertTemplate', { id: newId, url: url });
 
-  Logger.log('Шаблон создан: https://docs.google.com/presentation/d/' + pres.getId() + '/edit');
-  Logger.log('TEMPLATE_SLIDE_ID прописан в Script Properties.');
-  Logger.log('Открой Slides и подвинь плейсхолдеры мышью если нужно.');
-  return pres.getUrl();
+  // Возвращаем читаемое сообщение — оно появится в Execution log как
+  // "результат функции" (видно прямо в "Журнал выполнения" без переключения).
+  const message = 'OK. Template created and saved.\n' +
+                  'TEMPLATE_SLIDE_ID = ' + newId + '\n' +
+                  'Open: ' + url;
+  Logger.log(message);
+  return message;
 }
 
 function menuAutoStudentCodes() {
