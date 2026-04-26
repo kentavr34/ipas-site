@@ -1008,6 +1008,88 @@ function autoStudentCodes() {
   return { processed: data.length, assigned };
 }
 
+/**
+ * Создаёт Google Slides шаблон сертификата из картинки в Google Drive.
+ *
+ * Использование:
+ *   1. Загрузи картинку сертификата (без вписанного имени/курса) в свой Drive
+ *   2. Открой картинку → правый клик → Get link → скопируй ID из URL
+ *      (https://drive.google.com/file/d/ВОТ_ЭТО_ID/view)
+ *   3. В редакторе Apps Script запусти функцию createCertTemplateFromImage
+ *      с этим ID (или вставь ID в строку imageDriveId ниже)
+ *   4. Скрипт создаст новый Slides файл, поставит картинку как фон,
+ *      нарисует поверх плейсхолдеры, и пропишет TEMPLATE_SLIDE_ID
+ *      в Script Properties — после этого генерация сертификатов
+ *      сразу заработает с твоим дизайном.
+ */
+function createCertTemplateFromImage() {
+  const imageDriveId = 'PUT_IMAGE_DRIVE_ID_HERE';
+  if (imageDriveId === 'PUT_IMAGE_DRIVE_ID_HERE') {
+    throw new Error('Сначала впиши Drive ID картинки сертификата в imageDriveId.');
+  }
+  return _buildCertTemplate(imageDriveId);
+}
+
+function _buildCertTemplate(imageDriveId) {
+  // 1. Создаём пустой Slides файл
+  const pres = SlidesApp.create('IPAS Certificate Template');
+  const slide = pres.getSlides()[0];
+
+  // 2. Размер слайда — A4 landscape (примерно 297×210 mm = 11.69×8.27 inch)
+  // SlidesApp работает в pixels (96 DPI): 1122 x 793 px
+  pres.setPageSize(1122, 793);
+
+  // 3. Заливаем фоном картинку сертификата
+  const image = DriveApp.getFileById(imageDriveId).getBlob();
+  const bg = slide.insertImage(image);
+  bg.setLeft(0).setTop(0).setWidth(1122).setHeight(793);
+  bg.sendToBack();
+
+  // 4. Расставляем плейсхолдеры в типичных местах сертификата
+  //    Координаты подобраны под landscape layout твоего макета.
+  //    После создания шаблона можно открыть Slides и сдвинуть мышью.
+  const fields = [
+    { ph: '{{full_name}}', x: 200, y: 280, w: 720, h: 80,
+      font: 'Great Vibes', size: 60, color: '#0F2A23', align: 'CENTER' },
+    { ph: 'for successful completion of the "{{program}}"',
+      x: 200, y: 380, w: 720, h: 40,
+      font: 'Open Sans', size: 16, color: '#0F2A23', align: 'CENTER' },
+    { ph: 'course under the guidance of Teacher {{teacher}}',
+      x: 200, y: 415, w: 720, h: 30,
+      font: 'Open Sans', size: 14, color: '#0F2A23', align: 'CENTER' },
+    { ph: '#{{display_id}}', x: 50, y: 740, w: 200, h: 30,
+      font: 'Consolas', size: 11, color: '#7A4900', align: 'START' },
+    { ph: '{{issue_date}}', x: 870, y: 740, w: 200, h: 30,
+      font: 'Open Sans', size: 11, color: '#7A4900', align: 'END' },
+  ];
+
+  fields.forEach(f => {
+    const tb = slide.insertTextBox(f.ph, f.x, f.y, f.w, f.h);
+    const t = tb.getText();
+    t.getTextStyle()
+      .setFontFamily(f.font)
+      .setFontSize(f.size)
+      .setForegroundColor(f.color);
+    if (f.align === 'CENTER') {
+      t.getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.CENTER);
+    } else if (f.align === 'END') {
+      t.getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.END);
+    }
+  });
+
+  pres.saveAndClose();
+
+  // 5. Прописываем ID в Script Properties — отныне генератор будет
+  //    использовать именно этот шаблон.
+  PropertiesService.getScriptProperties().setProperty('TEMPLATE_SLIDE_ID', pres.getId());
+  audit('createCertTemplate', { id: pres.getId() });
+
+  Logger.log('Шаблон создан: https://docs.google.com/presentation/d/' + pres.getId() + '/edit');
+  Logger.log('TEMPLATE_SLIDE_ID прописан в Script Properties.');
+  Logger.log('Открой Slides и подвинь плейсхолдеры мышью если нужно.');
+  return pres.getUrl();
+}
+
 function menuAutoStudentCodes() {
   const ui = SpreadsheetApp.getUi();
   try {
