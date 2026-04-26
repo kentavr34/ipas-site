@@ -1023,10 +1023,8 @@ function autoStudentCodes() {
  *      сразу заработает с твоим дизайном.
  */
 function createCertTemplateFromImage() {
-  const imageDriveId = 'PUT_IMAGE_DRIVE_ID_HERE';
-  if (imageDriveId === 'PUT_IMAGE_DRIVE_ID_HERE') {
-    throw new Error('Сначала впиши Drive ID картинки сертификата в imageDriveId.');
-  }
+  // ID картинки сертификата в Google Drive (от Кенана, 2026-04-25):
+  const imageDriveId = '1A5pI1nje9zq0y_5q9BS7ITHOO7eXbDb_';
   return _buildCertTemplate(imageDriveId);
 }
 
@@ -1045,22 +1043,38 @@ function _buildCertTemplate(imageDriveId) {
   bg.setLeft(0).setTop(0).setWidth(1122).setHeight(793);
   bg.sendToBack();
 
-  // 4. Расставляем плейсхолдеры в типичных местах сертификата
-  //    Координаты подобраны под landscape layout твоего макета.
+  // 4. Закрываем образцовый текст белыми масками, чтобы под плейсхолдером
+  //    не просвечивали "Aybeniz Hasanova" и название курса с примера.
+  //    Координаты подобраны под landscape layout твоего макета (1122×793).
+  const masks = [
+    // Имя — широкая полоса посередине
+    { x: 90, y: 270, w: 940, h: 95 },
+    // Текст про курс и преподавателя — две строки
+    { x: 200, y: 380, w: 720, h: 80 },
+  ];
+  masks.forEach(m => {
+    const r = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, m.x, m.y, m.w, m.h);
+    r.getFill().setSolidFill('#FFFFFF');
+    r.getBorder().setTransparent();
+  });
+
+  // 5. Плейсхолдеры поверх масок.
   //    После создания шаблона можно открыть Slides и сдвинуть мышью.
   const fields = [
-    { ph: '{{full_name}}', x: 200, y: 280, w: 720, h: 80,
+    { ph: '{{full_name}}', x: 90, y: 280, w: 940, h: 80,
       font: 'Great Vibes', size: 60, color: '#0F2A23', align: 'CENTER' },
-    { ph: 'for successful completion of the "{{program}}"',
-      x: 200, y: 380, w: 720, h: 40,
+    { ph: 'for successful completion of the "{{program}}" course',
+      x: 200, y: 385, w: 720, h: 30,
       font: 'Open Sans', size: 16, color: '#0F2A23', align: 'CENTER' },
-    { ph: 'course under the guidance of Teacher {{teacher}}',
-      x: 200, y: 415, w: 720, h: 30,
+    { ph: 'under the guidance of Teacher {{teacher}}',
+      x: 200, y: 418, w: 720, h: 30,
       font: 'Open Sans', size: 14, color: '#0F2A23', align: 'CENTER' },
-    { ph: '#{{display_id}}', x: 50, y: 740, w: 200, h: 30,
-      font: 'Consolas', size: 11, color: '#7A4900', align: 'START' },
-    { ph: '{{issue_date}}', x: 870, y: 740, w: 200, h: 30,
-      font: 'Open Sans', size: 11, color: '#7A4900', align: 'END' },
+    // Невидимый текст с display_id и датой — нужен Apps Script для замены,
+    // но визуально не мешает (мелким шрифтом в углу).
+    { ph: '#{{display_id}}', x: 50, y: 760, w: 200, h: 25,
+      font: 'Roboto Mono', size: 9, color: '#999999', align: 'START' },
+    { ph: '{{issue_date}}', x: 870, y: 760, w: 200, h: 25,
+      font: 'Open Sans', size: 9, color: '#999999', align: 'END' },
   ];
 
   fields.forEach(f => {
