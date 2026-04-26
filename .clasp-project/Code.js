@@ -1051,6 +1051,8 @@ function _buildCertTemplate(imageDriveId) {
     { x: 90, y: 270, w: 940, h: 95 },
     // Текст про курс и преподавателя — две строки
     { x: 200, y: 380, w: 720, h: 80 },
+    // Полоска для часов и даты под текстом курса
+    { x: 200, y: 460, w: 720, h: 30 },
   ];
   masks.forEach(m => {
     const r = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, m.x, m.y, m.w, m.h);
@@ -1069,12 +1071,13 @@ function _buildCertTemplate(imageDriveId) {
     { ph: 'under the guidance of Teacher {{teacher}}',
       x: 200, y: 418, w: 720, h: 30,
       font: 'Open Sans', size: 14, color: '#0F2A23', align: 'CENTER' },
-    // Невидимый текст с display_id и датой — нужен Apps Script для замены,
-    // но визуально не мешает (мелким шрифтом в углу).
+    // Часы и дата выдачи — видимая строка под информацией о курсе
+    { ph: 'Total: {{hours}} hours  ·  Issued: {{issue_date}}',
+      x: 200, y: 462, w: 720, h: 28,
+      font: 'Open Sans', size: 13, color: '#7A4900', align: 'CENTER' },
+    // ID студента в углу — для технической верификации
     { ph: '#{{display_id}}', x: 50, y: 760, w: 200, h: 25,
       font: 'Roboto Mono', size: 9, color: '#999999', align: 'START' },
-    { ph: '{{issue_date}}', x: 870, y: 760, w: 200, h: 25,
-      font: 'Open Sans', size: 9, color: '#999999', align: 'END' },
   ];
 
   fields.forEach(f => {
