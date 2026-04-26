@@ -543,22 +543,48 @@ function buildCertificatePdf_(cert) {
   throw new Error('Ни TEMPLATE_SLIDE_ID, ни TEMPLATE_DOC_ID не настроены');
 }
 
-/** Google Slides → PDF: твой дизайн из Corel как фон, поверх — плейсхолдеры. */
+/** Google Slides → PDF: твой дизайн как фон, поверх — плейсхолдеры + динамический QR. */
 function buildPdfFromSlides_(slideId, cert) {
   const copy = DriveApp.getFileById(slideId).makeCopy('tmp-cert-' + cert.id);
   try {
     const pres = SlidesApp.openById(copy.getId());
     const slides = pres.getSlides();
+
+    // 1. Заменяем все плейсхолдеры {{key}} в тексте слайда
     Object.keys(cert).forEach(key => {
       const placeholder = '{{' + key + '}}';
       const value = String(cert[key] == null ? '' : cert[key]);
       slides.forEach(s => s.replaceAllText(placeholder, value));
     });
+
+    // 2. Генерируем уникальный QR-код для верификации этого сертификата
+    //    и вставляем поверх замаскированной зоны старого QR.
+    const verifyUrl = 'https://intpas.com/' +
+                       (cert.display_id || cert.id);
+    try {
+      const qrBlob = _generateQrBlob(verifyUrl);
+      // Координаты совпадают с маской в _buildCertTemplate — белый
+      // прямоугольник скрывает старый QR, мы кладём поверх свежий.
+      slides[0].insertImage(qrBlob, 215, 530, 145, 145);
+    } catch (e) {
+      // Если QR-сервис недоступен — продолжаем без QR
+      audit('qrFailed', { url: verifyUrl, error: String(e) });
+    }
+
     pres.saveAndClose();
-    return copy.getAs('application/pdf').setName('IPAS-' + cert.display_id + '.pdf');
+    return copy.getAs('application/pdf')
+               .setName('IPAS-' + (cert.display_id || cert.id) + '.pdf');
   } finally {
     copy.setTrashed(true);
   }
+}
+
+/** Генерирует PNG QR-кода для строки через qrserver.com (без ключа, бесплатно). */
+function _generateQrBlob(text) {
+  const url = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&ecc=H&margin=0&data=' +
+              encodeURIComponent(text);
+  const res = UrlFetchApp.fetch(url, { muteHttpExceptions: false });
+  return res.getBlob().setName('qr.png');
 }
 
 /** Старый Google Docs шаблон — для обратной совместимости. */
@@ -1053,6 +1079,8 @@ function _buildCertTemplate(imageDriveId) {
     { x: 200, y: 380, w: 720, h: 80 },
     // Полоска для часов и даты под текстом курса
     { x: 200, y: 460, w: 720, h: 30 },
+    // Старый QR-код студентки Aybeniz — заменим на динамический
+    { x: 215, y: 530, w: 145, h: 145 },
   ];
   masks.forEach(m => {
     const r = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, m.x, m.y, m.w, m.h);
