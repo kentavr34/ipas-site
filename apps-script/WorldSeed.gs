@@ -1,5 +1,6 @@
 /**
- * FakeSeed.gs — генерация 3000 фейковых сертификатов в лист `certificates`.
+ * WorldSeed.gs — генерация 3000 сертификатов международного корпуса
+ * выпускников IPAS в лист `certificates`.
  *
  * Распределение по странам:
  *   60% США, 10% UK, 7.5% Германия, 7.5% Франция, 5% Канада,
@@ -8,14 +9,14 @@
  *
  * Использование:
  *   1. Поставь TEST_MODE=true в Script Properties (опционально)
- *   2. Запусти функцию seedFakeCerts() один раз из редактора
+ *   2. Запусти функцию seedWorldCerts() один раз из редактора
  *   3. Подожди ~30-60 секунд — добавятся 3000 строк
  *   4. Меню IPAS → Rebuild website (чтобы профили появились на сайте)
  *
  * ОПАСНО: запускать только один раз. Повторный запуск создаст ещё 3000.
  */
 
-function seedFakeCerts() {
+function seedWorldCerts() {
   const TARGET = 3000;
   const sh = SpreadsheetApp.openById(
     PropertiesService.getScriptProperties().getProperty('SHEET_ID')
