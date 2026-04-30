@@ -55,7 +55,7 @@ export function CertSearch({ compact = false }: { compact?: boolean }) {
           onChange={e => setQ(e.target.value)}
           placeholder="Name or certificate ID"
           className="input !py-4 pl-11 pr-12 text-base sm:text-sm
-                     placeholder:text-fg-muted"
+                     text-left placeholder:text-fg-muted"
           autoComplete="off"
           spellCheck={false}
         />
@@ -80,9 +80,10 @@ export function CertSearch({ compact = false }: { compact?: boolean }) {
               href={`/certificate/${cert.id}`}
               className="flex items-center justify-between gap-4 rounded-lg
                          border border-brand-gold/20 bg-surface-muted px-4 py-3
-                         transition hover:border-brand-gold/60 hover:shadow-glow"
+                         text-left transition hover:border-brand-gold/60
+                         hover:shadow-glow"
             >
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1 text-left">
                 <div className="truncate font-medium">{cert.full_name}</div>
                 <div className="truncate text-xs text-fg-muted">
                   {cert.program} · {cert.hours}h
